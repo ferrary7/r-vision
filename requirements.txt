@@ -1,0 +1,16 @@
+# r/vision - Requirements File (Updated for compatibility)
+# Core computer vision and ML libraries
+opencv-python>=4.8.0
+ultralytics>=8.2.0
+mediapipe>=0.10.7
+
+# Scientific computing
+numpy>=1.24.0
+
+# Additional utilities
+Pillow>=10.0.0
+tqdm>=4.66.0
+
+# Ensure compatible PyTorch for YOLO
+torch>=2.0.0
+torchvision>=0.15.0
