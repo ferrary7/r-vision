@@ -72,3 +72,10 @@ tmp/
 # Test files
 test_*.py
 *_test.py
+
+# Streamlit cache
+.streamlit/secrets.toml
+
+# Deployment
+.vercel/
+.netlify/

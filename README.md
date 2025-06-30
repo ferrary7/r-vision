@@ -6,6 +6,8 @@
 
 **🎬 Add Tracking Effects to Your Videos**
 
+[📱 **See Demo on Instagram**](https://www.instagram.com/reel/DLhWQweyOcy/) | [📂 **Get the Code**](https://github.com/ferrary7/r-vision) | [🌐 **Try Live Demo**](#web-ui)
+
 </div>
 
 ## What It Does
@@ -14,11 +16,26 @@ r/vision adds colorful tracking boxes around objects in your videos. Perfect for
 
 - **Social Media** - Eye-catching effects for TikTok, Instagram, YouTube
 
-## Installation
+## Quick Start
+
+### 🌐 Web UI (Easiest)
+
+Try the live demo in your browser:
 
 ```bash
-# Clone or download this repo
-git clone <repository-url>
+streamlit run app.py
+```
+
+- **Upload videos** up to 200MB
+- **Real-time progress** with frame-by-frame updates
+- **Instant preview** and download
+- **Customizable settings** with live sliders
+
+### 💻 Command Line
+
+```bash
+# Clone the repo
+git clone https://github.com/ferrary7/r-vision.git
 cd r-vision
 
 # Install requirements
@@ -43,9 +60,11 @@ python r_vision.py video.mp4 --yolo-confidence 0.7
 
 ## Features
 
+- **🌐 Web Interface** - Streamlit UI with real-time progress and video info
 - **Color-coded boxes** - Different colors for people, cars, electronics, etc.
 - **Thin, modern design** - Clean HUD-style overlays
 - **Live stats** - Shows confidence and FPS on each box
+- **Real-time progress** - Frame-by-frame processing updates
 - **Customizable** - Adjust sensitivity and colors
 
 ## Options

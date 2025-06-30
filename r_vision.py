@@ -473,8 +473,8 @@ class RVisionProcessor:
         # No global overlays - clean frame with just detection boxes
         return frame
     
-    def process_video(self, input_path: str, output_path: str = "output.mp4") -> bool:
-        """Process entire video file."""
+    def process_video(self, input_path: str, output_path: str = "output.mp4", progress_callback=None) -> bool:
+        """Process entire video file with optional progress callback."""
         print(f"🎬 Processing video: {input_path}")
         
         # Open input video
@@ -489,6 +489,14 @@ class RVisionProcessor:
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         
+        video_info = {
+            'fps': fps,
+            'width': width,
+            'height': height,
+            'total_frames': total_frames,
+            'duration': total_frames / fps if fps > 0 else 0
+        }
+        
         print(f"📊 Video info: {width}x{height}, {fps} FPS, {total_frames} frames")
         
         # Initialize video writer
@@ -502,6 +510,9 @@ class RVisionProcessor:
         
         print("🔄 Processing frames...")
         
+        # Initialize progress tracking
+        start_time = time.time()
+        
         try:
             while True:
                 ret, frame = cap.read()
@@ -514,9 +525,22 @@ class RVisionProcessor:
                 # Write frame
                 out.write(processed_frame)
                 
-                # Progress indicator
-                progress = (self.frame_count / total_frames) * 100
+                # Progress callback for UI updates
+                if progress_callback:
+                    avg_fps = sum(self.fps_history) / len(self.fps_history) if self.fps_history else 0
+                    progress_info = {
+                        'frame_count': self.frame_count,
+                        'total_frames': total_frames,
+                        'progress_percent': (self.frame_count / total_frames) * 100 if total_frames > 0 else 0,
+                        'processing_fps': avg_fps,
+                        'elapsed_time': time.time() - start_time,
+                        'estimated_remaining': ((total_frames - self.frame_count) / avg_fps) if avg_fps > 0 else 0
+                    }
+                    progress_callback(progress_info)
+                
+                # Console progress indicator
                 if self.frame_count % 30 == 0:  # Update every 30 frames
+                    progress = (self.frame_count / total_frames) * 100
                     avg_fps = sum(self.fps_history) / len(self.fps_history) if self.fps_history else 0
                     print(f"📈 Progress: {progress:.1f}% | Processing FPS: {avg_fps:.1f}")
         
@@ -540,6 +564,30 @@ class RVisionProcessor:
             print(f"   • Output saved: {output_path}")
         
         return True
+    
+    def get_video_info(self, input_path: str) -> dict:
+        """Get video information without processing."""
+        cap = cv2.VideoCapture(input_path)
+        if not cap.isOpened():
+            return None
+        
+        fps = int(cap.get(cv2.CAP_PROP_FPS))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration = total_frames / fps if fps > 0 else 0
+        
+        cap.release()
+        
+        return {
+            'fps': fps,
+            'width': width,
+            'height': height,
+            'total_frames': total_frames,
+            'duration': duration,
+            'resolution': f"{width}x{height}",
+            'duration_formatted': f"{int(duration//60):02d}:{int(duration%60):02d}"
+        }
     
     def cleanup(self):
         """Clean up resources."""
