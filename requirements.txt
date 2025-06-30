@@ -1,4 +1,4 @@
-# r/vision - Requirements File (Updated for compatibility)
+# r/vision - Requirements File (Updated for Streamlit deployment)
 # Core computer vision and ML libraries
 opencv-python>=4.8.0
 ultralytics>=8.2.0
@@ -12,6 +12,12 @@ Pillow>=10.0.0
 tqdm>=4.66.0
 streamlit>=1.28.0
 
-# Ensure compatible PyTorch for YOLO
-torch>=2.0.0
-torchvision>=0.15.0
+# Ensure compatible PyTorch for YOLO - letting Streamlit use its defaults
+# torch>=2.0.0
+# torchvision>=0.15.0
+
+# Additional dependencies for deployment
+python-multipart>=0.0.5
+protobuf>=3.20.0,<4.0.0  # Fix protobuf warnings
+absl-py>=1.0.0  # Required by MediaPipe, improve logging
+pydub>=0.25.1  # Audio handling (used by some MediaPipe features)

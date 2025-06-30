@@ -11,9 +11,22 @@ Features:
 - Clean, minimalist overlay styling
 
 Author: r/vision Team
-Version: 1.0.0
+Version: 1.0.1
 """
 
+# Suppress warnings before imports
+import os
+import warnings
+import logging
+
+# Configure logging and warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=all, 1=info, 2=warning, 3=error
+warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
+os.environ["MEDIAPIPE_DISABLE_GPU"] = "1"  # Force CPU to avoid some warnings
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+
+# Regular imports
 import cv2
 import numpy as np
 import mediapipe as mp
@@ -178,27 +191,61 @@ class RVisionProcessor:
         if self.enable_yolo:
             try:
                 print("📦 Loading YOLOv8 model...")
-                # Try to load with safe globals to avoid PyTorch compatibility issues
-                import torch
-                torch.serialization.add_safe_globals([
-                    'ultralytics.nn.tasks.DetectionModel',
-                    'ultralytics.models.yolo.detect.DetectionPredictor'
-                ])
+                
+                # We'll set up specific environment variables for cloud deployment
+                os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+                
+                # Force CPU usage to avoid CUDA/GPU issues in cloud environments
+                os.environ["CUDA_VISIBLE_DEVICES"] = ""
+                
+                # First, try the standard way
                 self.yolo_model = YOLO('yolov8n.pt')
                 print("✅ YOLOv8 model loaded successfully")
+                
             except Exception as e:
-                print(f"❌ Failed to load YOLO model: {e}")
-                print("💡 Trying alternative loading method...")
+                print(f"❌ Initial YOLO loading failed: {e}")
+                print("💡 Trying alternative loading methods...")
+                
                 try:
-                    # Alternative: load with weights_only=False
-                    import torch
-                    original_load = torch.load
-                    torch.load = lambda *args, **kwargs: original_load(*args, **kwargs, weights_only=False)
-                    self.yolo_model = YOLO('yolov8n.pt')
-                    torch.load = original_load
-                    print("✅ YOLOv8 model loaded with alternative method")
-                except Exception as e2:
-                    print(f"❌ Both loading methods failed: {e2}")
+                    # Method 2: Add safe globals
+                    try:
+                        import torch
+                        torch.serialization.add_safe_globals([
+                            'ultralytics.nn.tasks.DetectionModel',
+                            'ultralytics.models.yolo.detect.DetectionPredictor'
+                        ])
+                        self.yolo_model = YOLO('yolov8n.pt')
+                        print("✅ YOLOv8 model loaded with safe globals")
+                        return
+                    except Exception as e1:
+                        print(f"❌ Safe globals method failed: {e1}")
+                    
+                    # Method 3: Use weights_only=False
+                    try:
+                        import torch
+                        original_load = torch.load
+                        torch.load = lambda *args, **kwargs: original_load(*args, **kwargs, weights_only=False)
+                        self.yolo_model = YOLO('yolov8n.pt', task='detect')
+                        torch.load = original_load
+                        print("✅ YOLOv8 model loaded with weights_only=False")
+                        return
+                    except Exception as e2:
+                        print(f"❌ weights_only=False method failed: {e2}")
+                        
+                    # Method 4: Direct task specification  
+                    try:
+                        from ultralytics import YOLO
+                        self.yolo_model = YOLO('yolov8n.pt', task='detect')
+                        print("✅ YOLOv8 model loaded with task specification")
+                        return
+                    except Exception as e3:
+                        print(f"❌ Direct task specification failed: {e3}")
+                        
+                    self.enable_yolo = False
+                    print("❌ All YOLO loading methods failed - disabling object detection")
+                    
+                except Exception as final_e:
+                    print(f"❌ All methods failed with exception: {final_e}")
                     self.enable_yolo = False
         
         if self.enable_pose:

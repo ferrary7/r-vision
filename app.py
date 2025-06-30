@@ -9,6 +9,20 @@ import threading
 from queue import Queue
 import shutil
 import base64
+import warnings
+import logging
+import os
+
+# Suppress TensorFlow and MediaPipe warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=all, 1=info, 2=warning, 3=error
+warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
+logging.getLogger("mediapipe").setLevel(logging.ERROR)
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
+
+# Set environment variable to disable some MediaPipe logs
+os.environ["MEDIAPIPE_DISABLE_GPU"] = "1"  # Force CPU to avoid some warnings
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"  # Use Python implementation of protobuf
 
 # Output directory and processed video path
 OUTPUT_DIR = Path("output")
