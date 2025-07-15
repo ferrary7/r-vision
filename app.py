@@ -157,25 +157,26 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("🎨 Effect Settings")
 yolo_confidence = st.sidebar.slider(
     "Object Detection Sensitivity", 
-    min_value=0.1, 
+    min_value=0.05, 
     max_value=1.0, 
-    value=0.25, 
+    value=0.15,  # Lower default for better crowd detection
     step=0.05,
-    help="Lower = more objects detected (cyberpunk mode)"
+    help="Lower = more objects detected (cyberpunk mode). For crowds, try 0.05-0.15"
 )
 
 pose_confidence = st.sidebar.slider(
     "People Tracking Sensitivity", 
     min_value=0.1, 
     max_value=1.0, 
-    value=0.5, 
-    step=0.05
+    value=0.3,  # Lower default for crowd detection 
+    step=0.05,
+    help="Lower = detects more people. For crowds/tennis matches, try 0.2-0.4"
 )
 
 # Feature toggles
 st.sidebar.subheader("🔧 Features")
 enable_yolo = st.sidebar.checkbox("Object Detection", value=True, help="Track cars, phones, animals, etc.")
-enable_pose = st.sidebar.checkbox("People Tracking", value=True, help="Track human poses")
+enable_pose = st.sidebar.checkbox("People Tracking", value=False, help="Track human poses (disable for crowds)")  # Default to False for crowds
 
 # Main content
 col1, col2 = st.columns([1, 1])
@@ -496,10 +497,16 @@ with st.sidebar:
     - Multiple objects = cooler effects
     - Lower sensitivity = more tracking
     
+    **For crowds/sports:**
+    - Set Object Detection to 0.05-0.15
+    - Set People Tracking to 0.2-0.4
+    - Disable pose detection for faster processing
+    
     **Perfect for:**
     - Social media content
     - Music videos
     - Tech reviews
+    - Sports footage
     - Travel vlogs
     """)
     

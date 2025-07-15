@@ -51,6 +51,9 @@ python r_vision.py your_video.mp4
 # Save with custom name
 python r_vision.py input.mp4 --output enhanced.mp4
 
+# For crowds/sports (detects more people)
+python r_vision.py crowd_video.mp4 --yolo-confidence 0.05
+
 # More sensitive tracking (detects more objects)
 python r_vision.py video.mp4 --yolo-confidence 0.1
 

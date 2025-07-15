@@ -35,7 +35,14 @@ import argparse
 import sys
 from pathlib import Path
 from typing import Tuple, List, Optional, Dict, Any
-from ultralytics import YOLO
+
+# Import YOLO here to avoid scoping issues
+try:
+    from ultralytics import YOLO
+    YOLO_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️  Warning: Could not import YOLO: {e}")
+    YOLO_AVAILABLE = False
 
 class RVisionProcessor:
     """Main processor class for r/vision video analysis."""
@@ -188,7 +195,7 @@ class RVisionProcessor:
         """Initialize YOLO and MediaPipe models."""
         print("🚀 Initializing r/vision models...")
         
-        if self.enable_yolo:
+        if self.enable_yolo and YOLO_AVAILABLE:
             try:
                 print("📦 Loading YOLOv8 model...")
                 
@@ -216,50 +223,56 @@ class RVisionProcessor:
                         ])
                         self.yolo_model = YOLO('yolov8n.pt')
                         print("✅ YOLOv8 model loaded with safe globals")
-                        return
+                        
                     except Exception as e1:
                         print(f"❌ Safe globals method failed: {e1}")
-                    
-                    # Method 3: Use weights_only=False
-                    try:
-                        import torch
-                        original_load = torch.load
-                        torch.load = lambda *args, **kwargs: original_load(*args, **kwargs, weights_only=False)
-                        self.yolo_model = YOLO('yolov8n.pt', task='detect')
-                        torch.load = original_load
-                        print("✅ YOLOv8 model loaded with weights_only=False")
-                        return
-                    except Exception as e2:
-                        print(f"❌ weights_only=False method failed: {e2}")
                         
-                    # Method 4: Direct task specification  
-                    try:
-                        from ultralytics import YOLO
-                        self.yolo_model = YOLO('yolov8n.pt', task='detect')
-                        print("✅ YOLOv8 model loaded with task specification")
-                        return
-                    except Exception as e3:
-                        print(f"❌ Direct task specification failed: {e3}")
+                        # Method 3: Use weights_only=False
+                        try:
+                            import torch
+                            original_load = torch.load
+                            torch.load = lambda *args, **kwargs: original_load(*args, **kwargs, weights_only=False)
+                            self.yolo_model = YOLO('yolov8n.pt')
+                            torch.load = original_load
+                            print("✅ YOLOv8 model loaded with weights_only=False")
+                            
+                        except Exception as e2:
+                            print(f"❌ weights_only=False method failed: {e2}")
+                            
+                            # Method 4: Try basic load without task specification
+                            try:
+                                self.yolo_model = YOLO('yolov8n.pt')
+                                print("✅ YOLOv8 model loaded with basic method")
+                                
+                            except Exception as e3:
+                                print(f"❌ Basic loading failed: {e3}")
+                                self.enable_yolo = False
+                                print("❌ All YOLO loading methods failed - disabling object detection")
                         
-                    self.enable_yolo = False
-                    print("❌ All YOLO loading methods failed - disabling object detection")
-                    
                 except Exception as final_e:
                     print(f"❌ All methods failed with exception: {final_e}")
                     self.enable_yolo = False
+        elif self.enable_yolo and not YOLO_AVAILABLE:
+            print("❌ YOLO not available - ultralytics not installed properly")
+            self.enable_yolo = False
         
         if self.enable_pose:
             try:
                 print("🤸 Initializing MediaPipe Pose...")
                 self.mp_pose = mp.solutions.pose
+                # Use lower confidence thresholds for better crowd detection
+                detection_conf = min(self.pose_confidence, 0.3)  # Cap at 0.3 for crowds
+                tracking_conf = min(self.pose_confidence, 0.3)   # Cap at 0.3 for crowds
+                
+                # For crowd detection, we need to use static image mode to detect multiple people
                 self.pose_detector = self.mp_pose.Pose(
-                    static_image_mode=False,
-                    model_complexity=1,
+                    static_image_mode=True,   # Changed to True for multiple person detection
+                    model_complexity=0,       # Use lighter model for better performance with crowds
                     enable_segmentation=False,
-                    min_detection_confidence=self.pose_confidence,
-                    min_tracking_confidence=self.pose_confidence
+                    min_detection_confidence=detection_conf,
+                    min_tracking_confidence=tracking_conf
                 )
-                print("✅ MediaPipe Pose initialized successfully")
+                print("✅ MediaPipe Pose initialized successfully for crowd detection")
             except Exception as e:
                 print(f"❌ Failed to initialize MediaPipe: {e}")
                 self.enable_pose = False
@@ -357,10 +370,9 @@ class RVisionProcessor:
                 class_id = int(box.cls[0])
                 class_name = self.yolo_model.names[class_id]
                 
-                # Use very low confidence threshold to catch everything
-                # Even lower than what user sets - we want to see EVERYTHING
-                min_confidence = min(0.1, self.confidence_threshold)
-                if confidence < min_confidence:
+                # Use extremely low confidence threshold to catch everything
+                # Don't filter by user confidence here - we want all detections
+                if confidence < 0.01:  # Only skip extremely low confidence
                     continue
                 
                 # Ensure coordinates are within frame bounds
@@ -373,8 +385,8 @@ class RVisionProcessor:
                 box_width = x2 - x1
                 box_height = y2 - y1
                 
-                # Only skip extremely tiny boxes (less than 5x5 pixels)
-                if box_width < 5 or box_height < 5:
+                # Only skip extremely tiny boxes (less than 3x3 pixels)
+                if box_width < 3 or box_height < 3:
                     continue
                 
                 # Draw the bounding box with labels
@@ -488,26 +500,82 @@ class RVisionProcessor:
         # YOLO object detection - detect ALL objects with aggressive settings
         if self.enable_yolo and self.yolo_model:
             try:
-                # Use aggressive detection settings to catch everything
+                # Use the user-specified confidence threshold, but ensure it's low enough for crowd detection
+                detection_conf = min(self.confidence_threshold, 0.15)  # Cap at 0.15 for crowd scenes
+                
                 results = self.yolo_model(
                     frame, 
                     verbose=False,
-                    conf=0.1,      # Very low confidence threshold
-                    iou=0.7,       # Higher IoU threshold to allow more overlapping detections
-                    max_det=300,   # Allow up to 300 detections per image
-                    agnostic_nms=False  # Don't use class-agnostic NMS
+                    conf=detection_conf,  # Use the lower of user setting or 0.15
+                    iou=0.4,             # Lower IoU to allow more overlapping people
+                    max_det=500,         # Increase to 500 detections for crowds
+                    agnostic_nms=False,  # Don't use class-agnostic NMS
                 )
+                
+                # Count total detections
+                total_detections = 0
+                people_detected = 0
+                if results and len(results) > 0:
+                    for result in results:
+                        if hasattr(result, 'boxes') and result.boxes is not None:
+                            for box in result.boxes:
+                                total_detections += 1
+                                class_id = int(box.cls[0])
+                                class_name = self.yolo_model.names[class_id]
+                                if class_name.lower() == 'person':
+                                    people_detected += 1
+                
+                print(f"🔍 Frame {self.frame_count}: Total detections: {total_detections}, People: {people_detected}")
+                
+                # If we detected very few people, try a second pass with ultra-low confidence
+                if people_detected < 5:  # If less than 5 people detected, try again
+                    if self.frame_count <= 5:  # Only print debug info for first few frames
+                        print(f"🔄 Low people count ({people_detected}), trying ultra-low confidence...")
+                    results_second = self.yolo_model(
+                        frame,
+                        verbose=False,
+                        conf=0.01,           # Ultra-low confidence for crowd detection
+                        iou=0.2,             # Even lower IoU
+                        max_det=1000,        # Even more detections allowed
+                        agnostic_nms=False,
+                    )
+                    # Count second pass results
+                    if results_second and len(results_second) > 0:
+                        second_total = 0
+                        second_people = 0
+                        for result in results_second:
+                            if hasattr(result, 'boxes') and result.boxes is not None:
+                                for box in result.boxes:
+                                    second_total += 1
+                                    class_id = int(box.cls[0])
+                                    class_name = self.yolo_model.names[class_id]
+                                    if class_name.lower() == 'person':
+                                        second_people += 1
+                        
+                        print(f"🔄 Second pass: Total detections: {second_total}, People: {second_people}")
+                        if second_people > people_detected + 2:  # At least 2 more people found
+                            results = results_second  # Use the better results
+                            if self.frame_count <= 5:  # Only print debug info for first few frames
+                                print(f"✅ Using second pass results ({second_people} people vs {people_detected})")
+                
+                # Draw the best results we found
                 frame = self._draw_yolo_detections(frame, results, avg_fps)
+                            
             except Exception as e:
                 print(f"⚠️  YOLO processing error: {e}")
+        else:
+            print(f"⚠️  YOLO not available - enable_yolo: {self.enable_yolo}, yolo_model: {self.yolo_model is not None}")
         
-        # MediaPipe pose detection (bounding boxes for people) - detect ALL people
-        if self.enable_pose and self.pose_detector:
+        # MediaPipe pose detection - Note: MediaPipe only detects ONE person per frame
+        # For crowd scenarios, rely primarily on YOLO
+        people_detected = locals().get('people_detected', 0)  # Get people count from YOLO or default to 0
+        if self.enable_pose and self.pose_detector and people_detected < 2:  # Only use if YOLO found very few people
             try:
                 rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 pose_results = self.pose_detector.process(rgb_frame)
                 if pose_results.pose_landmarks:
                     frame = self._draw_pose_bounding_box(frame, pose_results.pose_landmarks, avg_fps)
+                    print(f"📍 MediaPipe detected 1 additional person")
             except Exception as e:
                 print(f"⚠️  Pose processing error: {e}")
         
